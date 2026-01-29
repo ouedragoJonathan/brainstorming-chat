@@ -2,17 +2,31 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SYSTEM_INSTRUCTION_BASE } from '../constants';
 import { PersonaType, StrategicPrediction } from '../types';
 
+// Récupération de la clé injectée par Vite
+const apiKey = process.env.API_KEY;
+
+// Fonction de validation pour éviter les erreurs 400 opaques
+const checkApiKey = () => {
+  if (!apiKey || apiKey.length === 0 || apiKey.includes("VOTRE_CLE")) {
+    throw new Error("🚫 CLÉ API MANQUANTE. Veuillez créer un fichier .env à la racine avec : API_KEY=votre_cle_ici (voir .env.example)");
+  }
+};
+
 // Initialize Gemini Client
-// Requires process.env.API_KEY to be set
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Utilisation d'une chaîne vide par défaut si undefined pour éviter le crash à l'instanciation,
+// l'erreur sera levée lors de l'appel via checkApiKey()
+const ai = new GoogleGenAI({ apiKey: apiKey || "NO_KEY_PROVIDED" });
 
 const MODELS = {
-  PRIMARY: 'gemini-3-pro-preview', // Pour l'analyse approfondie
-  FALLBACK: 'gemini-3-flash-preview', // En cas d'erreur de quota
-  FAST: 'gemini-3-flash-preview' // Pour la prédiction rapide
+  PRIMARY: 'gemini-3-pro-preview',
+  FALLBACK: 'gemini-3-flash-preview',
+  FAST: 'gemini-3-flash-preview'
 };
 
 export const generateAnalysis = async (idea: string, personaName: string): Promise<string> => {
+  // 0. Vérification de sécurité avant appel
+  checkApiKey();
+
   const fullSystemInstruction = `${SYSTEM_INSTRUCTION_BASE}`;
   const contents = `PERSONNALITÉ CHOISIE : ${personaName}\n\nIDÉE À ANALYSER : ${idea}`;
 
@@ -23,63 +37,56 @@ export const generateAnalysis = async (idea: string, personaName: string): Promi
       contents: contents,
       config: {
         systemInstruction: fullSystemInstruction,
-        temperature: 0.7, // Balance between creativity and structure
-        thinkingConfig: { thinkingBudget: 2048 }, // Enable thinking for deeper analysis
+        temperature: 0.7, 
+        thinkingConfig: { thinkingBudget: 2048 }, 
       },
     });
 
     const text = response.text;
-    if (!text) {
-      throw new Error("No response generated from Gemini Pro.");
-    }
-
+    if (!text) throw new Error("No response generated from Gemini Pro.");
     return text;
 
   } catch (error: any) {
-    // 1. Détection CLÉ RÉVOQUÉE / FUITÉE
-    if (error.message?.includes('leaked') || error.status === 403) {
-      throw new Error("🚨 ALERTE SÉCURITÉ : Votre clé API a été détectée comme compromise et bloquée par Google. Veuillez générer une nouvelle clé sur aistudio.google.com et mettre à jour votre fichier .env.");
+    
+    // 1. Gestion spécifique "Clé Invalide / Fuite"
+    if (error.message?.includes('leaked') || error.status === 403 || error.message?.includes('API Key not found') || error.status === 400) {
+      if (error.status === 400) throw new Error("🚫 Configuration API incorrecte. Vérifiez que votre fichier .env est bien sauvegardé et que le serveur a été redémarré.");
+      throw new Error("🚨 ALERTE SÉCURITÉ : Votre clé API est invalide ou bloquée. Vérifiez votre fichier .env.");
     }
 
-    // 2. Détection de l'erreur de quota (429 ou RESOURCE_EXHAUSTED)
+    // 2. Gestion Quota (Fallback)
     const isQuotaError = error.message?.includes('429') || 
                          error.message?.includes('RESOURCE_EXHAUSTED') || 
                          error.status === 429;
 
     if (isQuotaError) {
-      console.warn(`Quota épuisé pour ${MODELS.PRIMARY}. Basculement automatique vers ${MODELS.FALLBACK}.`);
-      
+      console.warn(`Quota épuisé pour ${MODELS.PRIMARY}. Basculement vers ${MODELS.FALLBACK}.`);
       try {
-        // Tentative 2 : Fallback sur le modèle Flash (plus rapide/léger)
         const response = await ai.models.generateContent({
           model: MODELS.FALLBACK,
           contents: contents,
           config: {
             systemInstruction: fullSystemInstruction,
             temperature: 0.7,
-            // Budget de pensée réduit pour Flash
             thinkingConfig: { thinkingBudget: 1024 },
           },
         });
-
         const text = response.text;
-        if (!text) throw new Error("No response generated from Gemini Flash.");
-        
-        // On ajoute une petite note discrète à la fin
-        return text + "\n\n> *Note système : Analyse générée via le circuit rapide (Flash) pour optimiser les ressources.*";
-        
+        if (!text) throw new Error("No response from Fallback.");
+        return text + "\n\n> *Note : Analyse via modèle rapide (Relais Flash) suite à une saturation réseau.*";
       } catch (fallbackError: any) {
-        console.error("Fallback Error:", fallbackError);
-        throw new Error("Les services IA sont momentanément saturés. Veuillez réessayer dans quelques instants.");
+        throw new Error("Les services IA sont momentanément saturés. Veuillez réessayer dans 30 secondes.");
       }
     }
 
     console.error("Gemini API Error:", error);
-    throw new Error(error.message || "An error occurred while communicating with the AI.");
+    throw new Error(error.message || "Erreur de communication avec l'IA.");
   }
 };
 
 export const predictStrategy = async (idea: string): Promise<StrategicPrediction> => {
+  checkApiKey();
+  
   try {
     const response = await ai.models.generateContent({
       model: MODELS.FAST,
@@ -103,14 +110,13 @@ export const predictStrategy = async (idea: string): Promise<StrategicPrediction
       }
     });
     
-    // The response is guaranteed to be JSON due to responseMimeType and responseSchema
     return JSON.parse(response.text!) as StrategicPrediction;
   } catch (error: any) {
     console.error("Prediction API Error:", error);
-     if (error.message?.includes('leaked') || error.status === 403) {
-      throw new Error("Votre clé API est invalide (fuitée). Mettez à jour le fichier .env.");
+    // Silent fail for prediction helper
+    if (error.message?.includes('API Key') || error.status === 400 || error.status === 403) {
+      throw error; // Rethrow auth errors
     }
-    // On ne bloque pas l'utilisateur si la prédiction échoue pour d'autres raisons
-    throw new Error("Could not generate a strategic prediction.");
+    throw new Error("Prediction unavailable.");
   }
 };
