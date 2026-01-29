@@ -2,23 +2,30 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SYSTEM_INSTRUCTION_BASE } from '../constants';
 import { PersonaType, StrategicPrediction } from '../types';
 
-// Récupération de la clé injectée par Vite
-const apiKey = process.env.API_KEY;
+// Récupération de la clé injectée et nettoyage de sécurité ultime
+// .trim() est crucial ici au cas où l'injection contienne des espaces résiduels
+const rawApiKey = process.env.API_KEY || "";
+const apiKey = rawApiKey.trim();
 
-// Diagnostic au chargement
-console.log(`[Gemini Service] Statut Clé API: ${apiKey ? `Présente (${apiKey.length} chars, commence par ${apiKey.substring(0, 4)}...)` : 'MANQUANTE'}`);
+// Diagnostic console visible dans le navigateur
+console.group("[Gemini Service Debug]");
+console.log("Statut Brut:", rawApiKey ? "Présent" : "Vide");
+console.log("Longueur Clé:", apiKey.length);
+console.log("Aperçu:", apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : "N/A");
+console.groupEnd();
 
-// Fonction de validation
+// Fonction de validation stricte
 const checkApiKey = () => {
-  if (!apiKey || apiKey.length < 10 || apiKey.includes("VOTRE_CLE")) {
-    console.error("[Gemini Service] Clé invalide détectée:", apiKey);
-    throw new Error("🚫 CLÉ API MANQUANTE OU INVALIDE. Vérifiez votre fichier .env et redémarrez le serveur.");
+  if (!apiKey || apiKey.length < 20 || apiKey.includes("VOTRE_CLE")) {
+    const msg = "🚫 CLÉ API INVALIDE : La clé semble incorrecte ou absente du fichier .env.";
+    console.error(msg, { apiKey });
+    throw new Error(msg);
   }
 };
 
 // Initialize Gemini Client
-// On passe la clé si elle existe, sinon une valeur bidon pour que l'instance se crée (l'appel échouera via checkApiKey)
-const ai = new GoogleGenAI({ apiKey: apiKey || "MISSING_KEY" });
+// Utilisation d'une clé factice explicite si vide pour que l'erreur vienne de notre checkApiKey et pas du SDK
+const ai = new GoogleGenAI({ apiKey: apiKey || "MISSING_KEY_FOR_INIT" });
 
 const MODELS = {
   PRIMARY: 'gemini-3-pro-preview',
@@ -27,6 +34,7 @@ const MODELS = {
 };
 
 export const generateAnalysis = async (idea: string, personaName: string): Promise<string> => {
+  // 1. Validation avant appel
   checkApiKey();
 
   const fullSystemInstruction = `${SYSTEM_INSTRUCTION_BASE}`;
@@ -48,13 +56,16 @@ export const generateAnalysis = async (idea: string, personaName: string): Promi
     return text;
 
   } catch (error: any) {
-    console.error("Gemini Analysis Error Full Object:", error);
+    console.error("Gemini API Error Details:", error);
     
-    // Gestion erreurs Auth
-    if (error.message?.includes('leaked') || error.status === 403 || error.status === 400 || error.message?.includes('API Key')) {
-      // Message plus technique pour aider au debug
-      const details = error.message || "Erreur inconnue";
-      throw new Error(`🔑 Erreur d'authentification API (${error.status}): ${details}. Vérifiez votre clé dans le fichier .env.`);
+    // Gestion spécifique de l'erreur 400 "API Key not found" qui est souvent un pb de format
+    if (error.message?.includes('API Key not found') || error.status === 400) {
+       throw new Error(`⚠️ Problème d'authentification (400). La clé API est peut-être mal formatée ou contient des espaces. Vérifiez le fichier .env. (Clé lue: ${apiKey.substring(0,5)}...)`);
+    }
+
+    // Autres erreurs d'auth
+    if (error.message?.includes('leaked') || error.status === 403) {
+      throw new Error(`🚨 Clé API refusée (403). Elle a peut-être expiré ou été révoquée.`);
     }
 
     // Gestion Quota
@@ -82,7 +93,7 @@ export const generateAnalysis = async (idea: string, personaName: string): Promi
       }
     }
 
-    throw new Error(error.message || "Erreur de communication avec l'IA.");
+    throw new Error(error.message || "Erreur technique lors de la génération.");
   }
 };
 
@@ -115,9 +126,7 @@ export const predictStrategy = async (idea: string): Promise<StrategicPrediction
     return JSON.parse(response.text!) as StrategicPrediction;
   } catch (error: any) {
     console.error("Prediction API Error:", error);
-    if (error.message?.includes('API Key') || error.status === 400 || error.status === 403) {
-      throw error; 
-    }
+    if (error.status === 400 || error.status === 403) throw error;
     throw new Error("Prediction unavailable.");
   }
 };
