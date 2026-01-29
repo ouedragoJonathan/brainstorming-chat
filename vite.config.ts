@@ -15,7 +15,7 @@ function cleanEnvValue(val: string) {
   return clean;
 }
 
-function getApiKeyManually() {
+function getApiKeyManually(): string | null {
   const rootDir = process.cwd();
   const filesToCheck = ['.env', '.env.local', '.env.example'];
   
@@ -53,7 +53,10 @@ export default defineConfig(({ mode }) => {
   // 2. Si non trouvé ou vide, tentative manuelle
   if (!apiKey) {
     console.log("⚠️ [Vite Config] Aucune clé via loadEnv, tentative lecture fichier...");
-    apiKey = getApiKeyManually();
+    const manualKey = getApiKeyManually();
+    if (manualKey) {
+      apiKey = manualKey;
+    }
   } else {
     // Nettoyage même si chargé via loadEnv (pour virer les espaces éventuels)
     apiKey = cleanEnvValue(apiKey);
