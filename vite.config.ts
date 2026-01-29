@@ -1,17 +1,13 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
-  
-  // Utilisation de la variable d'env OU de la clé en dur si l'environnement échoue
-  // (Comme demandé : "reexpose ma clé")
-  const apiKey = env.API_KEY || "AIzaSyDtMMCHaGDqCNbH0F4MhqoM_vlzu_YAPPo";
+// Clé API fournie explicitement par l'utilisateur
+const HARDCODED_KEY = "AIzaSyDtMMCHaGDqCNbH0F4MhqoM_vlzu_YAPPo";
 
-  return {
-    plugins: [react()],
-    define: {
-      'process.env.API_KEY': JSON.stringify(apiKey) 
-    }
+export default defineConfig({
+  plugins: [react()],
+  define: {
+    // Force la clé dans tout le code client via process.env.API_KEY
+    'process.env.API_KEY': JSON.stringify(HARDCODED_KEY) 
   }
 })
