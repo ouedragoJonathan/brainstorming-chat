@@ -36,7 +36,12 @@ export const generateAnalysis = async (idea: string, personaName: string): Promi
     return text;
 
   } catch (error: any) {
-    // Détection de l'erreur de quota (429 ou RESOURCE_EXHAUSTED)
+    // 1. Détection CLÉ RÉVOQUÉE / FUITÉE
+    if (error.message?.includes('leaked') || error.status === 403) {
+      throw new Error("🚨 ALERTE SÉCURITÉ : Votre clé API a été détectée comme compromise et bloquée par Google. Veuillez générer une nouvelle clé sur aistudio.google.com et mettre à jour votre fichier .env.");
+    }
+
+    // 2. Détection de l'erreur de quota (429 ou RESOURCE_EXHAUSTED)
     const isQuotaError = error.message?.includes('429') || 
                          error.message?.includes('RESOURCE_EXHAUSTED') || 
                          error.status === 429;
@@ -102,7 +107,10 @@ export const predictStrategy = async (idea: string): Promise<StrategicPrediction
     return JSON.parse(response.text!) as StrategicPrediction;
   } catch (error: any) {
     console.error("Prediction API Error:", error);
-    // On ne bloque pas l'utilisateur si la prédiction échoue, on log juste l'erreur
+     if (error.message?.includes('leaked') || error.status === 403) {
+      throw new Error("Votre clé API est invalide (fuitée). Mettez à jour le fichier .env.");
+    }
+    // On ne bloque pas l'utilisateur si la prédiction échoue pour d'autres raisons
     throw new Error("Could not generate a strategic prediction.");
   }
 };

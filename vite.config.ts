@@ -7,7 +7,8 @@ import path from 'path'
 // car Vite ne le charge pas automatiquement comme variables d'environnement
 function loadEnvExample() {
   try {
-    const envPath = path.resolve(process.cwd(), '.env.example');
+    // Fix: Resolve path relative to CWD implicitly to avoid "process.cwd()" type error
+    const envPath = path.resolve('.env.example');
     if (fs.existsSync(envPath)) {
       const content = fs.readFileSync(envPath, 'utf-8');
       const config: Record<string, string> = {};
@@ -32,7 +33,8 @@ function loadEnvExample() {
 
 export default defineConfig(({ mode }) => {
   // 1. Charge les variables standard (.env, .env.local, etc.)
-  const env = loadEnv(mode, process.cwd(), '');
+  // Fix: Use '.' as root instead of "process.cwd()" to avoid type error
+  const env = loadEnv(mode, '.', '');
   
   // 2. Si API_KEY n'est pas trouvée, on essaie de la lire dans .env.example
   // (Spécifique à votre demande pour utiliser ce fichier comme source)
