@@ -5,17 +5,20 @@ import { PersonaType, StrategicPrediction } from '../types';
 // Récupération de la clé injectée par Vite
 const apiKey = process.env.API_KEY;
 
-// Fonction de validation pour éviter les erreurs 400 opaques
+// Diagnostic au chargement
+console.log(`[Gemini Service] Statut Clé API: ${apiKey ? `Présente (${apiKey.length} chars, commence par ${apiKey.substring(0, 4)}...)` : 'MANQUANTE'}`);
+
+// Fonction de validation
 const checkApiKey = () => {
-  if (!apiKey || apiKey.length === 0 || apiKey.includes("VOTRE_CLE")) {
-    throw new Error("🚫 CLÉ API MANQUANTE. Veuillez créer un fichier .env à la racine avec : API_KEY=votre_cle_ici (voir .env.example)");
+  if (!apiKey || apiKey.length < 10 || apiKey.includes("VOTRE_CLE")) {
+    console.error("[Gemini Service] Clé invalide détectée:", apiKey);
+    throw new Error("🚫 CLÉ API MANQUANTE OU INVALIDE. Vérifiez votre fichier .env et redémarrez le serveur.");
   }
 };
 
 // Initialize Gemini Client
-// Utilisation d'une chaîne vide par défaut si undefined pour éviter le crash à l'instanciation,
-// l'erreur sera levée lors de l'appel via checkApiKey()
-const ai = new GoogleGenAI({ apiKey: apiKey || "NO_KEY_PROVIDED" });
+// On passe la clé si elle existe, sinon une valeur bidon pour que l'instance se crée (l'appel échouera via checkApiKey)
+const ai = new GoogleGenAI({ apiKey: apiKey || "MISSING_KEY" });
 
 const MODELS = {
   PRIMARY: 'gemini-3-pro-preview',
@@ -24,14 +27,12 @@ const MODELS = {
 };
 
 export const generateAnalysis = async (idea: string, personaName: string): Promise<string> => {
-  // 0. Vérification de sécurité avant appel
   checkApiKey();
 
   const fullSystemInstruction = `${SYSTEM_INSTRUCTION_BASE}`;
   const contents = `PERSONNALITÉ CHOISIE : ${personaName}\n\nIDÉE À ANALYSER : ${idea}`;
 
   try {
-    // Tentative 1 : Utiliser le modèle puissant (Pro)
     const response = await ai.models.generateContent({
       model: MODELS.PRIMARY,
       contents: contents,
@@ -47,14 +48,16 @@ export const generateAnalysis = async (idea: string, personaName: string): Promi
     return text;
 
   } catch (error: any) {
+    console.error("Gemini Analysis Error Full Object:", error);
     
-    // 1. Gestion spécifique "Clé Invalide / Fuite"
-    if (error.message?.includes('leaked') || error.status === 403 || error.message?.includes('API Key not found') || error.status === 400) {
-      if (error.status === 400) throw new Error("🚫 Configuration API incorrecte. Vérifiez que votre fichier .env est bien sauvegardé et que le serveur a été redémarré.");
-      throw new Error("🚨 ALERTE SÉCURITÉ : Votre clé API est invalide ou bloquée. Vérifiez votre fichier .env.");
+    // Gestion erreurs Auth
+    if (error.message?.includes('leaked') || error.status === 403 || error.status === 400 || error.message?.includes('API Key')) {
+      // Message plus technique pour aider au debug
+      const details = error.message || "Erreur inconnue";
+      throw new Error(`🔑 Erreur d'authentification API (${error.status}): ${details}. Vérifiez votre clé dans le fichier .env.`);
     }
 
-    // 2. Gestion Quota (Fallback)
+    // Gestion Quota
     const isQuotaError = error.message?.includes('429') || 
                          error.message?.includes('RESOURCE_EXHAUSTED') || 
                          error.status === 429;
@@ -79,7 +82,6 @@ export const generateAnalysis = async (idea: string, personaName: string): Promi
       }
     }
 
-    console.error("Gemini API Error:", error);
     throw new Error(error.message || "Erreur de communication avec l'IA.");
   }
 };
@@ -113,9 +115,8 @@ export const predictStrategy = async (idea: string): Promise<StrategicPrediction
     return JSON.parse(response.text!) as StrategicPrediction;
   } catch (error: any) {
     console.error("Prediction API Error:", error);
-    // Silent fail for prediction helper
     if (error.message?.includes('API Key') || error.status === 400 || error.status === 403) {
-      throw error; // Rethrow auth errors
+      throw error; 
     }
     throw new Error("Prediction unavailable.");
   }
