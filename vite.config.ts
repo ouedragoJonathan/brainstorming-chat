@@ -1,13 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Clé API fournie explicitement par l'utilisateur
-const HARDCODED_KEY = "AIzaSyDtMMCHaGDqCNbH0F4MhqoM_vlzu_YAPPo";
+// ⚠️ L'ancienne clé a été révoquée par Google ("Leaked").
+// COLLEZ VOTRE NOUVELLE CLÉ ICI ENTRE LES GUILLEMETS.
+const HARDCODED_KEY = "VOTRE_NOUVELLE_CLE_ICI"; 
 
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Force la clé dans tout le code client via process.env.API_KEY
-    'process.env.API_KEY': JSON.stringify(HARDCODED_KEY) 
+    // Si la clé en dur est définie, elle écrase tout. Sinon on regarde le .env
+    'process.env.API_KEY': JSON.stringify(HARDCODED_KEY !== "VOTRE_NOUVELLE_CLE_ICI" ? HARDCODED_KEY : process.env.API_KEY || "") 
   }
 })

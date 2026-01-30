@@ -20,7 +20,8 @@ const App: React.FC = () => {
   // Vérification de la configuration au montage
   useEffect(() => {
     const apiKey = process.env.API_KEY;
-    const isValid = apiKey && apiKey.length > 10 && !apiKey.includes("VOTRE_CLE");
+    // On vérifie si la clé est présente et n'est pas le placeholder par défaut
+    const isValid = apiKey && apiKey.length > 20 && !apiKey.includes("VOTRE_NOUVELLE_CLE");
     setSystemStatus(isValid ? 'ready' : 'error');
   }, []);
 
@@ -53,8 +54,12 @@ const App: React.FC = () => {
       setPrediction(pred);
       setSelectedPersona(pred.suggestedPersona);
     } catch (err: any) {
-      // We don't block the UI for prediction errors, just log or subtle visual
-      console.warn("Prediction failed", err);
+      // Si l'erreur est critique (clé leakée), on l'affiche
+      if (err.message && (err.message.includes('BLOQUÉE') || err.message.includes('leaked'))) {
+          setError(err.message);
+      } else {
+          console.warn("Prediction failed", err);
+      }
     } finally {
       setPredicting(false);
     }
@@ -97,7 +102,7 @@ const App: React.FC = () => {
               ) : (
                 <>
                   <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                  <span className="text-[10px] font-bold tracking-wider">API KEY ERROR</span>
+                  <span className="text-[10px] font-bold tracking-wider">KEY MISSING</span>
                 </>
               )}
             </div>
@@ -125,11 +130,15 @@ const App: React.FC = () => {
             </div>
 
             {systemStatus === 'error' && (
-               <div className="mb-8 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3 text-red-300">
-                  <XCircle className="w-6 h-6 shrink-0" />
+               <div className="mb-8 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-3 text-red-300">
+                  <XCircle className="w-6 h-6 shrink-0 mt-0.5" />
                   <div className="text-sm">
-                    <strong>Problème de configuration détecté.</strong>
-                    <p className="opacity-80 mt-1">La clé API est introuvable ou invalide. Veuillez vérifier votre fichier <code>.env</code> et redémarrer le terminal.</p>
+                    <strong className="block mb-1">Action Requise : Clé API Manquante ou Invalide</strong>
+                    <p className="opacity-80">
+                      1. Générez une <strong>nouvelle clé</strong> sur Google AI Studio (l'ancienne est grillée).<br/>
+                      2. Collez-la dans <code>vite.config.ts</code> à la place du texte "VOTRE_NOUVELLE_CLE_ICI".<br/>
+                      3. Redémarrez le serveur (<code>npm run dev</code>).
+                    </p>
                   </div>
                </div>
             )}
@@ -157,7 +166,7 @@ const App: React.FC = () => {
               <textarea
                 value={idea}
                 onChange={(e) => setIdea(e.target.value)}
-                placeholder={systemStatus === 'ready' ? "e.g., An Uber for lawn mowers, a subscription service for artisanal coffee, a SaaS for beekeepers..." : "System Unavailable - Check API Key"}
+                placeholder={systemStatus === 'ready' ? "e.g., An Uber for lawn mowers, a subscription service for artisanal coffee, a SaaS for beekeepers..." : "System Unavailable - Check API Key in vite.config.ts"}
                 className="w-full bg-slate-900/50 text-white placeholder-slate-500 border border-slate-700 rounded-xl p-4 min-h-[160px] focus:outline-none focus:bg-slate-900 transition-colors resize-y text-lg leading-relaxed mb-4"
                 disabled={loading || systemStatus === 'error'}
               />
@@ -207,7 +216,7 @@ const App: React.FC = () => {
             {error && (
               <div className="mt-6 p-4 bg-red-900/20 border border-red-800 rounded-xl flex items-start gap-3 text-red-200 animate-fade-in">
                 <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-                <p className="text-sm">{error}</p>
+                <p className="text-sm font-medium">{error}</p>
               </div>
             )}
             

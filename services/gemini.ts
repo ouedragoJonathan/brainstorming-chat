@@ -2,8 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SYSTEM_INSTRUCTION_BASE } from '../constants';
 import { PersonaType, StrategicPrediction } from '../types';
 
-// Initialisation directe avec la clé injectée par Vite
-// process.env.API_KEY contient maintenant la clé définie dans vite.config.ts
+// Initialisation directe
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const MODELS = {
@@ -33,6 +32,11 @@ export const generateAnalysis = async (idea: string, personaName: string): Promi
 
   } catch (error: any) {
     console.error("Gemini API Error:", error);
+
+    // ERREUR SPÉCIFIQUE : CLÉ FUITÉE (Celle que vous avez eue)
+    if (error.message && (error.message.includes('leaked') || error.message.includes('PERMISSION_DENIED'))) {
+        throw new Error("⛔ CLÉ BLOQUÉE PAR SÉCURITÉ. Google a détecté que votre clé précédente a fuité et l'a désactivée. Vous devez générer une NOUVELLE clé sur Google AI Studio et la remplacer dans le code.");
+    }
     
     // Gestion simplifiée des erreurs
     const isQuotaError = error.status === 429 || 
@@ -60,7 +64,7 @@ export const generateAnalysis = async (idea: string, personaName: string): Promi
     }
 
     if (error.status === 400 || (error.message && error.message.includes('API_KEY_INVALID'))) {
-        throw new Error("Clé API invalide. Vérifiez que votre clé Google Generative AI est correcte et active.");
+        throw new Error("Clé API invalide. Vérifiez que la clé dans vite.config.ts est correcte.");
     }
 
     throw new Error(error.message || "Erreur technique lors de la génération.");
@@ -92,8 +96,11 @@ export const predictStrategy = async (idea: string): Promise<StrategicPrediction
     });
     
     return JSON.parse(response.text!) as StrategicPrediction;
-  } catch (error) {
+  } catch (error: any) {
     console.warn("Prediction failed silently:", error);
+    if (error.message && error.message.includes('leaked')) {
+        throw error; // On remonte l'erreur critique
+    }
     throw new Error("Prediction unavailable.");
   }
 };
