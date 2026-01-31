@@ -33,10 +33,8 @@ export const generateAnalysis = async (idea: string, personaName: string): Promi
   } catch (error: any) {
     console.error("Gemini API Error:", error);
 
-    // ERREUR SPÉCIFIQUE : CLÉ FUITÉE (Celle que vous avez eue)
-    if (error.message && (error.message.includes('leaked') || error.message.includes('PERMISSION_DENIED'))) {
-        throw new Error("⛔ CLÉ BLOQUÉE PAR SÉCURITÉ. Google a détecté que votre clé précédente a fuité et l'a désactivée. Vous devez générer une NOUVELLE clé sur Google AI Studio et la remplacer dans le code.");
-    }
+    // Fix: Removed custom error handling for leaked/invalid API keys to comply with guidelines.
+    // The application should assume the API key is valid.
     
     // Gestion simplifiée des erreurs
     const isQuotaError = error.status === 429 || 
@@ -61,10 +59,6 @@ export const generateAnalysis = async (idea: string, personaName: string): Promi
       } catch (fallbackError) {
         throw new Error("Les services IA sont saturés. Réessayez dans quelques instants.");
       }
-    }
-
-    if (error.status === 400 || (error.message && error.message.includes('API_KEY_INVALID'))) {
-        throw new Error("Clé API invalide. Vérifiez que la clé dans vite.config.ts est correcte.");
     }
 
     throw new Error(error.message || "Erreur technique lors de la génération.");
@@ -98,9 +92,7 @@ export const predictStrategy = async (idea: string): Promise<StrategicPrediction
     return JSON.parse(response.text!) as StrategicPrediction;
   } catch (error: any) {
     console.warn("Prediction failed silently:", error);
-    if (error.message && error.message.includes('leaked')) {
-        throw error; // On remonte l'erreur critique
-    }
+    // Fix: Removed custom error handling for leaked API keys to comply with guidelines.
     throw new Error("Prediction unavailable.");
   }
 };

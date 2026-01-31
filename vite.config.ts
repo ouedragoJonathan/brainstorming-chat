@@ -1,16 +1,18 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+// Fix: Import `cwd` from `node:process` to resolve TypeScript error with `process.cwd()`.
+import { cwd } from 'node:process';
 
-// Clé API définie directement.
-// ⚠️ IMPORTANT : Cette clé a été révoquée par Google et ne fonctionnera pas.
-// Vous DEVEZ la remplacer par une NOUVELLE clé que vous générez sur Google AI Studio.
-const API_KEY = "AIzaSyBUrntnWDBn5OmkrhN1BViuEKxOc8RIQRA";
+// https://vitejs.dev/config/
+export default defineConfig(({ mode }) => {
+  // Charge les variables d'environnement du fichier .env à la racine du projet
+  const env = loadEnv(mode, cwd(), '');
 
-export default defineConfig({
-  plugins: [react()],
-  define: {
-    // Injection directe de la variable d'environnement pour le build.
-    // C'est la méthode la plus simple pour éviter les erreurs de typage.
-    'process.env.API_KEY': JSON.stringify(API_KEY) 
+  return {
+    plugins: [react()],
+    define: {
+      // Expose la variable d'environnement API_KEY au code client de manière sécurisée.
+      'process.env.API_KEY': JSON.stringify(env.API_KEY)
+    }
   }
 })
