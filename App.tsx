@@ -20,8 +20,8 @@ const App: React.FC = () => {
   // Vérification de la configuration au montage
   useEffect(() => {
     const apiKey = process.env.API_KEY;
-    // On vérifie si la clé est présente et n'est pas le placeholder par défaut
-    const isValid = apiKey && apiKey.length > 20 && !apiKey.includes("VOTRE_NOUVELLE_CLE");
+    // Une simple vérification de la présence et de la longueur de la clé est suffisante.
+    const isValid = apiKey && apiKey.length > 30; // Les clés Gemini sont longues
     setSystemStatus(isValid ? 'ready' : 'error');
   }, []);
 
@@ -135,9 +135,9 @@ const App: React.FC = () => {
                   <div className="text-sm">
                     <strong className="block mb-1">Action Requise : Clé API Manquante ou Invalide</strong>
                     <p className="opacity-80">
-                      1. Générez une <strong>nouvelle clé</strong> sur Google AI Studio (l'ancienne est grillée).<br/>
-                      2. Collez-la dans <code>vite.config.ts</code> à la place du texte "VOTRE_NOUVELLE_CLE_ICI".<br/>
-                      3. Redémarrez le serveur (<code>npm run dev</code>).
+                      1. Générez une <strong>nouvelle clé API</strong> sur Google AI Studio.<br/>
+                      2. Remplacez la clé existante dans le fichier <code>vite.config.ts</code> par votre nouvelle clé.<br/>
+                      3. Poussez vos changements sur GitHub pour que Vercel redéploie l'application.
                     </p>
                   </div>
                </div>
