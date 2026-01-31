@@ -34,7 +34,7 @@ export const generateAnalysis = async (idea: string, personaName: string): Promi
     console.error("Gemini API Error:", error);
 
     if (error.message?.includes('API key not found') || error.message?.includes('API_KEY_INVALID')) {
-       throw new Error("Clé API invalide ou manquante. Assurez-vous d'avoir configuré une clé valide dans votre fichier .env (pour le développement local) ou dans les variables d'environnement de votre projet (pour le déploiement).");
+       throw new Error("Clé API invalide ou expirée. Veuillez vérifier la configuration de l'application.");
     }
     
     // Gestion simplifiée des erreurs
@@ -94,7 +94,7 @@ export const predictStrategy = async (idea: string): Promise<StrategicPrediction
   } catch (error: any) {
     console.warn("Prediction failed silently:", error);
     if (error.message?.includes('API key not found') || error.message?.includes('API_KEY_INVALID')) {
-      throw new Error("La prédiction a échoué car la clé API est invalide ou manquante.");
+      throw new Error("La prédiction a échoué car la clé API est invalide.");
     }
     throw new Error("Prediction unavailable.");
   }
