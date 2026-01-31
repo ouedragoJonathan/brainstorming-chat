@@ -33,8 +33,9 @@ export const generateAnalysis = async (idea: string, personaName: string): Promi
   } catch (error: any) {
     console.error("Gemini API Error:", error);
 
-    // Fix: Removed custom error handling for leaked/invalid API keys to comply with guidelines.
-    // The application should assume the API key is valid.
+    if (error.message?.includes('API key not found') || error.message?.includes('API_KEY_INVALID')) {
+       throw new Error("Clé API invalide ou manquante. Assurez-vous d'avoir configuré une clé valide dans votre fichier .env (pour le développement local) ou dans les variables d'environnement de votre projet (pour le déploiement).");
+    }
     
     // Gestion simplifiée des erreurs
     const isQuotaError = error.status === 429 || 
@@ -92,7 +93,9 @@ export const predictStrategy = async (idea: string): Promise<StrategicPrediction
     return JSON.parse(response.text!) as StrategicPrediction;
   } catch (error: any) {
     console.warn("Prediction failed silently:", error);
-    // Fix: Removed custom error handling for leaked API keys to comply with guidelines.
+    if (error.message?.includes('API key not found') || error.message?.includes('API_KEY_INVALID')) {
+      throw new Error("La prédiction a échoué car la clé API est invalide ou manquante.");
+    }
     throw new Error("Prediction unavailable.");
   }
 };

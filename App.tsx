@@ -1,6 +1,5 @@
-import React, { useState, useCallback } from 'react';
-// Fix: Removed unused imports `CheckCircle2` and `XCircle` after removing API key checking UI.
-import { BrainCircuit, Sparkles, AlertCircle, Loader2, Send, Wand2 } from 'lucide-react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { BrainCircuit, Sparkles, AlertCircle, Loader2, Send, Wand2, XCircle } from 'lucide-react';
 import PersonaSelector from './components/PersonaSelector';
 import ResultView from './components/ResultView';
 import PredictionCard from './components/PredictionCard';
@@ -16,9 +15,14 @@ const App: React.FC = () => {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [prediction, setPrediction] = useState<StrategicPrediction | null>(null);
-  
-  // Fix: Removed systemStatus state and useEffect for checking API key to comply with guidelines.
-  // The application must assume the API key is provided and valid.
+  const [systemStatus, setSystemStatus] = useState<'checking' | 'ready' | 'error'>('checking');
+
+  // Vérification de la configuration au montage pour guider l'utilisateur
+  useEffect(() => {
+    const apiKey = process.env.API_KEY;
+    const isInvalid = !apiKey || apiKey.includes("VOTRE_NOUVELLE_CLE_API_GEMINI_A_COLLER_ICI");
+    setSystemStatus(isInvalid ? 'error' : 'ready');
+  }, []);
 
   const handleGenerate = useCallback(async () => {
     if (!idea.trim()) return;
@@ -49,8 +53,8 @@ const App: React.FC = () => {
       setPrediction(pred);
       setSelectedPersona(pred.suggestedPersona);
     } catch (err: any) {
-      // Fix: Removed special handling for leaked key error messages.
       console.warn("Prediction failed", err);
+      setError(err.message);
     } finally {
       setPredicting(false);
     }
@@ -79,12 +83,23 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-4">
-             {/* Fix: System Status Indicator now always shows 'READY' */}
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">
-              <>
-                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                <span className="text-[10px] font-bold tracking-wider">SYSTEM READY</span>
-              </>
+             {/* System Status Indicator */}
+            <div className={`hidden sm:flex items-center gap-2 px-3 py-1 rounded-full border ${
+              systemStatus === 'ready' 
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                : 'bg-red-500/10 border-red-500/20 text-red-400'
+            }`}>
+              {systemStatus === 'ready' ? (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                  <span className="text-[10px] font-bold tracking-wider">SYSTEM READY</span>
+                </>
+              ) : (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-[10px] font-bold tracking-wider">KEY MISSING</span>
+                </>
+              )}
             </div>
 
             <div className="hidden md:flex items-center gap-2 text-xs font-mono text-slate-500 bg-slate-900 border border-slate-800 px-3 py-1 rounded-full">
@@ -109,7 +124,19 @@ const App: React.FC = () => {
               </p>
             </div>
 
-            {/* Fix: Removed UI for missing/invalid API key */}
+            {systemStatus === 'error' && (
+               <div className="mb-8 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-3 text-red-300">
+                  <XCircle className="w-6 h-6 shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <strong className="block mb-1">Action Requise : Clé API Manquante ou Invalide</strong>
+                    <p className="opacity-80">
+                      Veuillez vous assurer d'avoir une clé API Google Gemini valide configurée.
+                      <br />- **Localement :** Créez un fichier <code>.env</code> à la racine du projet et ajoutez <code>API_KEY="VOTRE_CLÉ"</code>.
+                      <br />- **Sur Vercel :** Ajoutez une variable d'environnement nommée <code>API_KEY</code> dans les paramètres de votre projet.
+                    </p>
+                  </div>
+               </div>
+            )}
 
             {prediction && (
               <PredictionCard 
@@ -122,19 +149,21 @@ const App: React.FC = () => {
               selectedPersona={selectedPersona} 
               recommendedPersona={prediction?.suggestedPersona}
               onSelect={setSelectedPersona} 
-              disabled={loading}
+              disabled={loading || systemStatus === 'error'}
             />
 
-            <div className="bg-slate-800/50 border rounded-2xl p-6 shadow-xl relative overflow-hidden group transition-all duration-300 border-slate-700 focus-within:ring-2 focus-within:ring-blue-500/50 focus-within:border-blue-500">
+            <div className={`bg-slate-800/50 border rounded-2xl p-6 shadow-xl relative overflow-hidden group transition-all duration-300 ${
+              systemStatus === 'error' ? 'border-red-900/50 opacity-75' : 'border-slate-700 focus-within:ring-2 focus-within:ring-blue-500/50 focus-within:border-blue-500'
+            }`}>
               <label className="block text-sm font-bold text-slate-300 mb-3 ml-1 uppercase tracking-wider">
                 Describe your concept
               </label>
               <textarea
                 value={idea}
                 onChange={(e) => setIdea(e.target.value)}
-                placeholder="e.g., An Uber for lawn mowers, a subscription service for artisanal coffee, a SaaS for beekeepers..."
+                placeholder={systemStatus === 'ready' ? "e.g., An Uber for lawn mowers, a subscription service for artisanal coffee, a SaaS for beekeepers..." : "Système Indisponible - Veuillez configurer votre clé API."}
                 className="w-full bg-slate-900/50 text-white placeholder-slate-500 border border-slate-700 rounded-xl p-4 min-h-[160px] focus:outline-none focus:bg-slate-900 transition-colors resize-y text-lg leading-relaxed mb-4"
-                disabled={loading}
+                disabled={loading || systemStatus === 'error'}
               />
               
               <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -142,7 +171,7 @@ const App: React.FC = () => {
                    <p className="text-xs text-slate-500 whitespace-nowrap">
                      {idea.length} characters
                    </p>
-                   {idea.length > 20 && !prediction && (
+                   {idea.length > 20 && !prediction && systemStatus === 'ready' && (
                      <button
                        onClick={handlePrediction}
                        disabled={predicting}
@@ -156,10 +185,10 @@ const App: React.FC = () => {
 
                  <button
                   onClick={handleGenerate}
-                  disabled={loading || idea.trim().length === 0}
+                  disabled={loading || idea.trim().length === 0 || systemStatus === 'error'}
                   className={`
                     w-full sm:w-auto flex justify-center items-center gap-2 px-8 py-3 rounded-xl font-bold text-white transition-all duration-300 shadow-lg
-                    ${loading || idea.trim().length === 0
+                    ${loading || idea.trim().length === 0 || systemStatus === 'error'
                       ? 'bg-slate-700 cursor-not-allowed text-slate-400' 
                       : 'bg-blue-600 hover:bg-blue-500 hover:scale-105 shadow-blue-600/20'
                     }
